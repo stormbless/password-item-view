@@ -16,12 +16,14 @@ import { Heading } from "@vibe/core";
 import axios from "axios";
 
 const monday = mondaySdk();
+monday.setApiVersion("2025-04");
 
 
 const backend = {
   api: async (method, path, params) => {
-    // console.log(`in backend.api, params: ${JSON.stringify(params)}`);
-    const sessionToken = monday.get("sessionToken");
+    //console.log(`in backend.api, params: ${JSON.stringify(params)}`);
+    const res = await monday.get("sessionToken");
+    const sessionToken = res.data;
     const config = {
       baseURL: import.meta.env.VITE_BACKEND,
       url: path,
@@ -53,20 +55,42 @@ const backend = {
 const VerificationPage = ({userId, setSessionValid}) => {
   const [code, setCode] = useState();
 
+  // const exp = Date.now() + 2 * 60 * 1000;
   const storeSession = async () => {
     // get current sessions
-    /*
-    const prevSessionsItem = monday.storage.instance.getItem("sessions")
-    let prevSessions = prevSessionsItem.data.value;
-    if (!prevSessions) {prevSessions = {}}
-      
-    // 1 hour
-    const expireTime = Date.now() + 1 * 60 * 60 * 1000;
+    const prevSessionsItem = await monday.storage.instance.getItem("sessions");
+    // {
+    //   data: {
+    //     value: {"75132500": exp},
+    //     success: true
+    //   },
+    // };
+    console.log(`prevSessionsItem: ${JSON.stringify(prevSessionsItem)}`);
+    if (!prevSessionsItem) {return;}
+    if (!prevSessionsItem.data) {return;}
+    if (!prevSessionsItem.data.success) {return;}
     
-    // add session
+    let prevSessions = JSON.parse(prevSessionsItem.data.value);
+    if (!prevSessions) {prevSessions = {}}
+    console.log(`prevSessions ${JSON.stringify(prevSessions)}`);
+      
+    // 5 minutes
+    const expireTime = Date.now() + 5 * 60 * 1000;
+    
+    // update user session
     const newSessions = {...prevSessions};
+    console.log(`newSessions before update: ${JSON.stringify(newSessions)}`);
+
     newSessions[userId] = expireTime;
-    await monday.storage.instance.setItem("sessions", newSessions);*/
+
+    console.log(`newSessions after update: ${JSON.stringify(newSessions)}`);
+
+    // store and set session
+    await monday.storage.instance.setItem("sessions", JSON.stringify(newSessions));
+    const getItem = await monday.storage.instance.getItem("sessions");
+    console.log("immediately get sessions again:")
+    console.log(getItem);
+    console.log(JSON.stringify(getItem));
     setSessionValid(true);
   }
 
@@ -92,7 +116,7 @@ const VerificationPage = ({userId, setSessionValid}) => {
     <Flex direction="column" gap="small" className="">
       <Flex direction="column" align="center" justify="center" gap="medium">
         
-        <Heading type="h1" weight="bold" align="center">
+        <Heading type="h1" weight="bold" color="primary" align="center">
           Verification
         </Heading>
 
@@ -235,13 +259,22 @@ const PasswordChangeHistoryPanel = ({ itemId, timeFormat, timeZoneOffset }) => {
   // fetch changeHistory on initial render and when itemId changes
   // due to how monday itemviews work, initial render may occur anytime itemId changes
   useEffect(() => {
-    // formats datetime according to the timeFormat ("12H" or "24H") and timeZoneOffset (in hours)
+    // formats datetime according to the user's timeFormat ("12H" or "24H")
+    // datetime in the form YYYY-MM-DD HH:MM, "12H" has AM/PM after that
+    // also adjusts datetime string for user's locale
     const formatDatetime = (datetime, timeFormat, timeZoneOffset) => {
-      const date = new Date(datetime);
+      const date = new Date(datetime);    
 
-      date.setHours(date.getHours() + timeZoneOffset);
+      const adjustedDate = new Date(datetime);
+     	adjustedDate.setHours(date.getHours() + timeZoneOffset)
+
+      // toLocalestring gets time for timezone of browser 
+      // Usually same as timeZoneOffset stored in monday user account but can be different, 
+      // calculate diff so toLocaleString to get the time configured for the monday account settings
+      const browserMondayDiff = timeZoneOffset + (date.getTimezoneOffset() / 60);
+      date.setHours(date.getHours() + browserMondayDiff);
       
-      const dateString = date.toISOString().substring(0, 10);
+      const dateString = adjustedDate.toISOString().substring(0, 10);
       const timeString = date.toLocaleString([], {
         hour12: (timeFormat === "12H"), 
         hour: "numeric", 
@@ -272,12 +305,6 @@ const PasswordChangeHistoryPanel = ({ itemId, timeFormat, timeZoneOffset }) => {
       try {
         const response = await backend.get("/api/get-change-history", {itemId}); 
         const changeHistory = response.data;
-        console.log("changeHistory length:")
-        console.log(changeHistory.length);
-        // [
-        //   {datetimeChanged: 1748246586296, user: {id: 45345, name: "David Bailes"}},
-        //   {datetimeChanged: 1748026586296, user: {id: 65465, name: "John Smith"}}
-        // ];     
         const formattedHistory = formatChangeHistory(changeHistory, timeFormat, timeZoneOffset);
         
         setChangeHistory(formattedHistory);
@@ -339,10 +366,22 @@ const App = () => {
   
   useEffect(() => {
     const fetchSession = async (userId) => {
-      const expDatetime = Date.now() - 6000000 * 1000
-      const sessionsItem = {data: {value: {"123": expDatetime}}}
-      //await monday.storage.instance.getItem("sessions");
-      const sessions = sessionsItem.data.value;
+      // const exp = Date.now() - 2 * 60 * 1000;
+      const sessionsItem = await monday.storage.instance.getItem("sessions");
+      console.log(`sessionItem: ${JSON.stringify(sessionsItem)}`);
+      // {
+      //   data: {
+      //     value: {"75132500": exp},
+      //     success: true
+      //   }
+      // };
+      if (!sessionsItem) {return;}
+      if (!sessionsItem.data) {return;}
+      if (!sessionsItem.data.success) {return;}
+      if (!sessionsItem.data.value) {return;}
+
+      const sessions = JSON.parse(sessionsItem.data.value);
+      console.log(`sessions: ${JSON.stringify(sessions)}`);
 
       const userSessionExp = sessions[userId];
       console.log("userSessionExp");
@@ -354,17 +393,35 @@ const App = () => {
       if (userSessionExp > Date.now()) {setSessionValid(true);}
     }
 
+    const getUserName = async (monday) => {
+      const query = `query {
+        me {
+          name
+        } 
+      }`;
+
+      const apiRes = await monday.api(query);
+      console.log(`usernameRes: ${JSON.stringify(apiRes)}`);
+      const userName = apiRes.data.me.name;
+      return userName;
+    }
+
     const fetchContext = async () => {
       // might have to do listener rather than get
-      const context = {
-        itemId: 423,
-        user: {
-          id: "123",
-          name: "Dave Bailes",
-          timeFormat: "12H",
-          timeZoneOffset: 0
-        }
-      }//await monday.get("context");
+      // const context = {
+      //   itemId: 423,
+      //   user: {
+      //     name: "David Alexander Bailes",
+      //     id: "75132500",
+      //     timeFormat: "12H",
+      //   }
+      // };
+      const contextRes = await monday.get("context");
+      console.log(`contextRes: ${JSON.stringify(contextRes)}`);
+      const context = contextRes.data;
+      console.log(`context: ${JSON.stringify(context)}`);
+
+      context.user.name = await getUserName(monday);
       
       setContext(context);
       // fetchSession called after because it uses context data
@@ -374,18 +431,19 @@ const App = () => {
     fetchContext();
   }, []);
   
-  const itemId =         context ? String(context.itemId) : null;
-  const userName =       context ? context.user.name      : null;
-  const userId =         context ? context.user.id        : null
-  const timeFormat =     context ? context.user.timeFormat     : null;
-  const timeZoneOffset = context ? context.user.timeZoneOffset : null;
+  const itemId =         context ? String(context.itemId)     : null;
+  const userName =       context ? context.user.name          : null;
+  const userId =         context ? context.user.id            : null
+  const timeFormat =     context ? context.user.timeFormat    : null;
+  const timeZoneOffset = context ? context.user.timeZoneOffset: null
 
-  const passwordData = (
+  const passwordDataLoaded = (
     typeof(itemId) === 'string' && 
-    typeof(userName) === 'string' );
-  const changeHistoryData = (
-    (timeFormat === "12H" || timeFormat === "24H") && 
-    typeof(timeZoneOffset) === 'number'
+    typeof(userName) === 'string' 
+  );
+  const changeHistoryDataLoaded = (
+    (timeFormat === "12H" || timeFormat === "24H") &&
+    (typeof(timeZoneOffset) === 'number') 
   );
   
   console.log(`context: ${context}`);
@@ -394,7 +452,6 @@ const App = () => {
   console.log(`userName: ${userName}`);
   console.log(`timeFormat: ${timeFormat}`);
   console.log(`timeZoneOffset: ${timeZoneOffset}`);
-  console.log(`timeZoneOffset: ${(timeZoneOffset)}`);
   console.log(`sessionValid: ${(sessionValid)}`);
 
   return (
@@ -411,18 +468,17 @@ const App = () => {
             <Tab>Password Change History</Tab>
           </TabList>
           <TabPanels>
-            {passwordData ? (
+            {passwordDataLoaded ? (
               <PasswordPanel itemId={itemId} userName={userName} />
             ) : (
               <LoadingPanel />
             )}
 
-            {changeHistoryData ? (
+            {changeHistoryDataLoaded ? (
               <PasswordChangeHistoryPanel 
-                itemId={itemId} 
-                timeFormat={timeFormat} 
-                timeZoneOffset={timeZoneOffset}
-              />
+              itemId={itemId} 
+              timeFormat={timeFormat}
+              timeZoneOffset={timeZoneOffset} />
             ) : (
               <LoadingPanel />
             )}
@@ -439,8 +495,6 @@ const App = () => {
   </>
   );
 };
-
-
 
 
 export default App;
