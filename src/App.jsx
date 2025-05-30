@@ -21,7 +21,7 @@ const monday = mondaySdk();
 const backend = {
   api: async (method, path, params) => {
     // console.log(`in backend.api, params: ${JSON.stringify(params)}`);
-    const sessionToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJkYXQiOnsiYWNjb3VudF9pZCI6IjEiLCJ1c2VyX2lkIjoiMSJ9LCJpYXQiOjE3NDg1MjY3NjgsImV4cCI6MTc0ODY5OTU2OH0.C2YDNjRhSgaktMuULXjAQHJ6yFHzLgQH0pvpY919rKE";
+    const sessionToken = monday.get("sessionToken");
     const config = {
       baseURL: import.meta.env.VITE_BACKEND,
       url: path,
@@ -90,36 +90,35 @@ const VerificationPage = ({userId, setSessionValid}) => {
 
   return (
     <Flex direction="column" gap="small" className="">
+      <Flex direction="column" align="center" justify="center" gap="medium">
         
-        <Flex direction="column" align="center" justify="center" gap="medium">
-          
-          <Heading type="h1" weight="bold" align="center">
-            Verification
-          </Heading>
+        <Heading type="h1" weight="bold" align="center">
+          Verification
+        </Heading>
 
-          <TextField
-            title="Code"
-            placeholder="Enter security code"
-            size="medium"
-            maxLength={9}
-  
-            type="password"
-            value={code}
-
-            onKeyDown={(handleKeyDown)}
-            onChange={(value) => setCode(value)}
-          />              
-        
-        </Flex>
-        <Button
-          kind="primary"
+        <TextField
+          title="Code"
+          placeholder="Enter security code"
           size="medium"
-          color="positive"
-          onClick={onButtonClick}
-          className="verify-button"
-        >
-          Verify
-        </Button>
+          maxLength={9}
+
+          type="password"
+          value={code}
+
+          onKeyDown={(handleKeyDown)}
+          onChange={(value) => setCode(value)}
+        />              
+      
+      </Flex>
+      <Button
+        kind="primary"
+        size="medium"
+        color="positive"
+        onClick={onButtonClick}
+        className="verify-button"
+      >
+        Verify
+      </Button>
     </Flex>
   );
 }
