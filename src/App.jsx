@@ -89,7 +89,7 @@ const VerificationPage = ({userId, setSessionValid}) => {
   }
 
   return (
-    <Flex direction="column" className="">
+    <Flex direction="column" gap="small" className="">
         
         <Flex direction="column" align="center" justify="center" gap="medium">
           
@@ -378,8 +378,8 @@ const App = () => {
   const itemId =         context ? String(context.itemId) : null;
   const userName =       context ? context.user.name      : null;
   const userId =         context ? context.user.id        : null
-  const timeFormat =     context ? context.timeFormat     : null;
-  const timeZoneOffset = context ? context.timeZoneOffset : null;
+  const timeFormat =     context ? context.user.timeFormat     : null;
+  const timeZoneOffset = context ? context.user.timeZoneOffset : null;
 
   const passwordData = (
     typeof(itemId) === 'string' && 
