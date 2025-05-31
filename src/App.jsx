@@ -12,6 +12,7 @@ import { Table, TableHeader, TableHeaderCell, TableBody, TableRow, TableCell } f
 import { Flex } from "@vibe/core";
 import { Button } from "@vibe/core";
 import { Heading } from "@vibe/core";
+import { ThemeProvider } from "@vibe/core";
 
 import axios from "axios";
 
@@ -21,7 +22,6 @@ monday.setApiVersion("2025-04");
 
 const backend = {
   api: async (method, path, params) => {
-    //console.log(`in backend.api, params: ${JSON.stringify(params)}`);
     const res = await monday.get("sessionToken");
     const sessionToken = res.data;
     const config = {
@@ -38,7 +38,6 @@ const backend = {
       config.data = params;
     }
 
-    // console.log(`in backend.api, config.data: ${JSON.stringify(config.data)}`);
     return await axios(config);
   },
   get: async (path, params) => {
@@ -46,51 +45,35 @@ const backend = {
     return response;
   },
   post: async (path, params) => {
-    // console.log(`in backend.post, params: ${JSON.stringify(params)}`);
     const response = await backend.api("post", path, params);
     return response;
   }
 }
 
-const VerificationPage = ({userId, setSessionValid}) => {
+const VerificationPage = ({ userId, setSessionValid }) => {
+
   const [code, setCode] = useState();
 
   // const exp = Date.now() + 2 * 60 * 1000;
   const storeSession = async () => {
     // get current sessions
     const prevSessionsItem = await monday.storage.instance.getItem("sessions");
-    // {
-    //   data: {
-    //     value: {"75132500": exp},
-    //     success: true
-    //   },
-    // };
-    console.log(`prevSessionsItem: ${JSON.stringify(prevSessionsItem)}`);
     if (!prevSessionsItem) {return;}
     if (!prevSessionsItem.data) {return;}
     if (!prevSessionsItem.data.success) {return;}
     
     let prevSessions = JSON.parse(prevSessionsItem.data.value);
     if (!prevSessions) {prevSessions = {}}
-    console.log(`prevSessions ${JSON.stringify(prevSessions)}`);
       
     // 5 minutes
     const expireTime = Date.now() + 5 * 60 * 1000;
     
     // update user session
     const newSessions = {...prevSessions};
-    console.log(`newSessions before update: ${JSON.stringify(newSessions)}`);
-
     newSessions[userId] = expireTime;
-
-    console.log(`newSessions after update: ${JSON.stringify(newSessions)}`);
 
     // store and set session
     await monday.storage.instance.setItem("sessions", JSON.stringify(newSessions));
-    const getItem = await monday.storage.instance.getItem("sessions");
-    console.log("immediately get sessions again:")
-    console.log(getItem);
-    console.log(JSON.stringify(getItem));
     setSessionValid(true);
   }
 
@@ -113,10 +96,10 @@ const VerificationPage = ({userId, setSessionValid}) => {
   }
 
   return (
-    <Flex direction="column" gap="small" className="">
+    <Flex direction="column" gap="small">
       <Flex direction="column" align="center" justify="center" gap="medium">
         
-        <Heading type="h1" weight="bold" color="primary" align="center">
+        <Heading type="h1" weight="medium" align="center">
           Verification
         </Heading>
 
@@ -161,8 +144,6 @@ const PasswordPanel = ({ itemId, userName }) => {
       try {
         const response = await backend.get("/api/get-password", {itemId});
         const password = response.data;
-        console.log(`response: ${JSON.stringify(response)}`);
-        console.log(`password: ${JSON.stringify(password)}`);
         setPwd(password);
       } catch(err) {
         console.error(err);
@@ -189,7 +170,6 @@ const PasswordPanel = ({ itemId, userName }) => {
 
   // password saves when password loses focus (if pwd changed from when focused on)
   const handleBlur = async () => {
-    // console.log(`pwdOnfocus: ${pwdOnFocus}`);
     if (pwd === pwdOnFocus) { return; }
 
     setLoading(true);
@@ -240,6 +220,7 @@ const PasswordPanel = ({ itemId, userName }) => {
 }
 
 const PasswordChangeHistoryPanel = ({ itemId, timeFormat, timeZoneOffset }) => {
+  const [loading, setLoading] = useState(false);
   const [changeHistory, setChangeHistory] = useState([]);
   const columns = [
     {
@@ -268,9 +249,9 @@ const PasswordChangeHistoryPanel = ({ itemId, timeFormat, timeZoneOffset }) => {
       const adjustedDate = new Date(datetime);
      	adjustedDate.setHours(date.getHours() + timeZoneOffset)
 
-      // toLocalestring gets time for timezone of browser 
+      // toLocalestring formats time for timezone of browser 
       // Usually same as timeZoneOffset stored in monday user account but can be different, 
-      // calculate diff so toLocaleString to get the time configured for the monday account settings
+      // calculate diff so toLocaleString formats the time according to the monday account settings
       const browserMondayDiff = timeZoneOffset + (date.getTimezoneOffset() / 60);
       date.setHours(date.getHours() + browserMondayDiff);
       
@@ -301,7 +282,7 @@ const PasswordChangeHistoryPanel = ({ itemId, timeFormat, timeZoneOffset }) => {
     }
 
     const fetchChangeHistory = async () => {
-      // loading?
+      setLoading(true);
       try {
         const response = await backend.get("/api/get-change-history", {itemId}); 
         const changeHistory = response.data;
@@ -312,7 +293,7 @@ const PasswordChangeHistoryPanel = ({ itemId, timeFormat, timeZoneOffset }) => {
         console.error(err);
         // error toast/status
       }
-      // set loading to false
+      setLoading(false);
     }
 
     fetchChangeHistory();
@@ -331,6 +312,9 @@ const PasswordChangeHistoryPanel = ({ itemId, timeFormat, timeZoneOffset }) => {
         <Table
           withoutBorder
           columns={columns}
+          dataState={{
+            isLoading: loading,
+          }}
         >
           <TableHeader>
             {columns.map((headerCell, index) => (
@@ -354,39 +338,26 @@ const PasswordChangeHistoryPanel = ({ itemId, timeFormat, timeZoneOffset }) => {
 const LoadingPanel = () => {
   return (
     <div>
-      Loading...
     </div>
   );
-}
+};
 
 const App = () => {
+  const [loadingSessionData, setLoadingSessionData] = useState(true);
   const [sessionValid, setSessionValid] = useState(false);
   const [context, setContext] = useState();
-
   
   useEffect(() => {
     const fetchSession = async (userId) => {
-      // const exp = Date.now() - 2 * 60 * 1000;
       const sessionsItem = await monday.storage.instance.getItem("sessions");
-      console.log(`sessionItem: ${JSON.stringify(sessionsItem)}`);
-      // {
-      //   data: {
-      //     value: {"75132500": exp},
-      //     success: true
-      //   }
-      // };
+
       if (!sessionsItem) {return;}
       if (!sessionsItem.data) {return;}
       if (!sessionsItem.data.success) {return;}
       if (!sessionsItem.data.value) {return;}
 
       const sessions = JSON.parse(sessionsItem.data.value);
-      console.log(`sessions: ${JSON.stringify(sessions)}`);
-
       const userSessionExp = sessions[userId];
-      console.log("userSessionExp");
-      console.log(userSessionExp);
-      console.log( `date: ${Date.now()}`);
 
       if (!userSessionExp)             {setSessionValid(false);}
       if (userSessionExp < Date.now()) {setSessionValid(false);}
@@ -401,41 +372,37 @@ const App = () => {
       }`;
 
       const apiRes = await monday.api(query);
-      console.log(`usernameRes: ${JSON.stringify(apiRes)}`);
       const userName = apiRes.data.me.name;
       return userName;
     }
 
     const fetchContext = async () => {
-      // might have to do listener rather than get
-      // const context = {
-      //   itemId: 423,
-      //   user: {
-      //     name: "David Alexander Bailes",
-      //     id: "75132500",
-      //     timeFormat: "12H",
-      //   }
-      // };
       const contextRes = await monday.get("context");
-      console.log(`contextRes: ${JSON.stringify(contextRes)}`);
       const context = contextRes.data;
-      console.log(`context: ${JSON.stringify(context)}`);
+      if (context.theme) {
+        console.log(`context.theme: `);
+        console.log(context.theme);
+      } else {
+        console.log(`doesn't have theme`);
+      }
 
       context.user.name = await getUserName(monday);
       
       setContext(context);
       // fetchSession called after because it uses context data
-      fetchSession(context.user.id);
+      await fetchSession(context.user.id);
+      setLoadingSessionData(false);
     }
 
     fetchContext();
-  }, []);
+  }, [loadingSessionData]);
   
   const itemId =         context ? String(context.itemId)     : null;
   const userName =       context ? context.user.name          : null;
-  const userId =         context ? context.user.id            : null
+  const userId =         context ? context.user.id            : null;
   const timeFormat =     context ? context.user.timeFormat    : null;
-  const timeZoneOffset = context ? context.user.timeZoneOffset: null
+  const timeZoneOffset = context ? context.user.timeZoneOffset: null;
+  const theme =          context ? context.theme              : "dark";
 
   const passwordDataLoaded = (
     typeof(itemId) === 'string' && 
@@ -445,54 +412,50 @@ const App = () => {
     (timeFormat === "12H" || timeFormat === "24H") &&
     (typeof(timeZoneOffset) === 'number') 
   );
-  
-  console.log(`context: ${context}`);
-
-  console.log(`itemId: ${itemId}`);
-  console.log(`userName: ${userName}`);
-  console.log(`timeFormat: ${timeFormat}`);
-  console.log(`timeZoneOffset: ${timeZoneOffset}`);
-  console.log(`sessionValid: ${(sessionValid)}`);
 
   return (
-    <>
-    {sessionValid ? (
-      <div
-        style={{
-          width: "75%",
-        }}
-      >
-        <TabsContext>
-          <TabList tabType="stretched">
-            <Tab>Password</Tab>
-            <Tab>Password Change History</Tab>
-          </TabList>
-          <TabPanels>
-            {passwordDataLoaded ? (
-              <PasswordPanel itemId={itemId} userName={userName} />
-            ) : (
-              <LoadingPanel />
-            )}
+    <ThemeProvider
+      systemTheme={theme}
+    >
+      <Flex direction="column">
+        {sessionValid ? (
+          <Box
+          style={{
+            width: "75%",
+          }}
+          >
+            <TabsContext>
+              <TabList tabType="stretched">
+                <Tab>Password</Tab>
+                <Tab>Password Change History</Tab>
+              </TabList>
+              <TabPanels>
+                {passwordDataLoaded ? (
+                  <PasswordPanel itemId={itemId} userName={userName} />
+                ) : (
+                  <LoadingPanel />
+                )}
 
-            {changeHistoryDataLoaded ? (
-              <PasswordChangeHistoryPanel 
-              itemId={itemId} 
-              timeFormat={timeFormat}
-              timeZoneOffset={timeZoneOffset} />
-            ) : (
-              <LoadingPanel />
-            )}
-          </TabPanels>
-        </TabsContext>
-      </div>
-    ) : (
-      (itemId, userId) ? (
-          <VerificationPage userId={userId} setSessionValid={setSessionValid} />
+                {changeHistoryDataLoaded ? (
+                  <PasswordChangeHistoryPanel 
+                  itemId={itemId} 
+                  timeFormat={timeFormat}
+                  timeZoneOffset={timeZoneOffset} />
+                ) : (
+                  <LoadingPanel />
+                )}
+              </TabPanels>
+            </TabsContext>
+          </Box>
         ) : (
-          <LoadingPanel />
-        )
-    )}
-  </>
+          (itemId && userId && !loadingSessionData) ? (
+            <VerificationPage userId={userId} setSessionValid={setSessionValid} />
+          ) : (
+            <LoadingPanel />
+          )
+        )}
+    </Flex>
+  </ThemeProvider>
   );
 };
 
