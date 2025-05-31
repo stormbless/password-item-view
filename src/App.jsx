@@ -379,12 +379,6 @@ const App = () => {
     const fetchContext = async () => {
       const contextRes = await monday.get("context");
       const context = contextRes.data;
-      if (context.theme) {
-        console.log(`context.theme: `);
-        console.log(context.theme);
-      } else {
-        console.log(`doesn't have theme`);
-      }
 
       context.user.name = await getUserName(monday);
       
