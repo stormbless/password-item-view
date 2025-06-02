@@ -135,7 +135,6 @@ const PasswordPanel = ({ itemId, userName }) => {
   const [pwdOnFocus, setPwdOnFocus] = useState("");
   const [showPwd, setShowPwd] = useState(false);
   const [loading, setLoading] = useState(false);
-  //const [iconClickedAt, setIconClickedAt] = useState(Date.now());
 
   // fetch password on initial render and when itemId changes
   useEffect(() => {
@@ -238,7 +237,7 @@ const PasswordChangeHistoryPanel = ({ itemId, timeFormat, timeZoneOffset }) => {
 
 
   // fetch changeHistory on initial render and when itemId changes
-  // due to how monday itemviews work, initial render may occur anytime itemId changes
+  // due to how monday itemviews work, initial render may occur anytime new item selected
   useEffect(() => {
     // formats datetime according to the user's timeFormat ("12H" or "24H")
     // datetime in the form YYYY-MM-DD HH:MM, "12H" has AM/PM after that
@@ -389,7 +388,7 @@ const App = () => {
     }
 
     fetchContext();
-  }, [loadingSessionData]);
+  }, []);
   
   const itemId =         context ? String(context.itemId)     : null;
   const userName =       context ? context.user.name          : null;
