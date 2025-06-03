@@ -1,9 +1,8 @@
-/*body {
-  margin: auto;
+body {
   --font-family: Figtree, Roboto, Noto Sans Hebrew, Noto Kufi Arabic, Noto Sans JP, sans-serif;
   --title-font-family: Poppins, Roboto, Noto Sans Hebrew, Noto Kufi Arabic, Noto Sans JP, sans-serif;
 }
-
+/*
 .App {
   width: 100vw;
   display: flex;

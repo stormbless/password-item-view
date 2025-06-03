@@ -38,6 +38,8 @@ const backend = {
       config.data = params;
     }
 
+    console.log(`req config: ${JSON.stringify(config)}`);
+
     return await axios(config);
   },
   get: async (path, params) => {
@@ -54,7 +56,6 @@ const VerificationPage = ({ userId, setSessionValid }) => {
 
   const [code, setCode] = useState();
 
-  // const exp = Date.now() + 2 * 60 * 1000;
   const storeSession = async () => {
     // get current sessions
     const prevSessionsItem = await monday.storage.instance.getItem("sessions");
@@ -77,12 +78,19 @@ const VerificationPage = ({ userId, setSessionValid }) => {
     setSessionValid(true);
   }
 
-  const verifyCode = () => {
-    // const codeValid = await backend.get('/api/codeValid', {itemId, code})
-    // if (codeValid)
-    if (code === '123456789') {
-      storeSession();
+  const verifyCode = async () => {
+    // verifying... toast/alert banner
+    try {
+      const codeValidRes = await backend.post("/api/verify-account-code", {code});
+      if (codeValidRes.status === 200) {
+        storeSession();
+        // success toast
+      }
+    } catch (error) {
+      console.log(error);
+      // error toast
     }
+    
 
   }
   function onButtonClick() {
